@@ -67,6 +67,11 @@ export function discardRight<T1, T2>(left : Parser<T1>, right : Parser<T2>) : Pa
   return combine(left, right, (r, _) => r);
 };
 
+export function enclosed<T1, T2, U>(left : Parser<T1>, parser : Parser<U>, right : Parser<T2>) : Parser<U>
+{
+  return discardLeft(left, discardRight(parser, right));
+};
+
 export function either<T>(...parsers : Parser<T>[]) : Parser<T>
 {
   return (input : StringView) : ParseResult<T> =>

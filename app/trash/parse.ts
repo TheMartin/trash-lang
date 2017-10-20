@@ -52,23 +52,72 @@ interface VarDecl
   name : Ident;
 };
 
-type Expr = Literal | Ident | UnaryExpr | BinaryExpr | PostFixExpr | VarDecl;
+type Expr = Literal | Ident | UnaryExpr | BinaryExpr | PostFixExpr;
+
+type Statement = Expr | JumpStatement | IfStatement | WhileStatement | ForStatement | CompoundStatement;
+
+type JumpStatement = ReturnStatement | BreakStatement | ContinueStatement;
+
+interface ReturnStatement
+{
+  expr : Expr;
+};
+
+interface BreakStatement
+{
+};
+
+interface ContinueStatement
+{
+};
+
+interface CompoundStatement
+{
+  statements : Statement[];
+};
+
+interface IfStatement
+{
+  condition : Expr | null;
+  statement : Statement;
+  elseStatement : Statement | null;
+};
+
+interface WhileStatement
+{
+  condition : Expr | null;
+  statement : Statement;
+};
+
+interface ForStatement
+{
+  init : Statement | null;
+  condition : Expr | null;
+  afterthought : Statement | null;
+  statement : Statement;
+};
 
 let nonZeroDigits = "123456789";
 let digits = "0" + nonZeroDigits;
 let nonDigitIdentCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_";
 let identCharacters = digits + nonDigitIdentCharacters;
+let keywords = ["var", "true", "false", "nil", "function", "if", "else", "for", "while", "return", "break", "continue"];
 
 function lexeme<T>(parser : p.Parser<T>) : p.Parser<T>
 {
   return p.discardLeft(p.skipWhitespace(), parser);
 };
 
+function keyword(word : string) : p.Parser<string>
+{
+  return lexeme(p.string(word));
+};
+
 let escapedCharacter = p.discardLeft(p.char("\\"), p.oneOf("\\\""));
 let nonescapedCharacter = p.noneOf("\\\"");
 let character = p.either(nonescapedCharacter, escapedCharacter);
 let characters = p.many(character, "", (s, c) => s + c);
-let quotedString = p.discardLeft(p.char("\""), p.discardRight(characters, p.char("\"")));
+let quotedString = p.enclosed(p.char("\""), characters, p.char("\""));
 
 function asDigit(digit : string) : number
 {
@@ -119,8 +168,11 @@ let openParen = lexeme(p.char("("));
 let closeParen = lexeme(p.char(")"));
 let openBracket = lexeme(p.char("["));
 let closeBracket = lexeme(p.char("]"));
+let openBrace = lexeme(p.char("{"));
+let closeBrace = lexeme(p.char("}"));
 let dotOp = lexeme(p.char("."));
 let comma = lexeme(p.char(","));
+let semicolon = lexeme(p.char(";"));
 let unaryOp = lexeme(p.oneOf("+-!"));
 let multiplicationOp = lexeme(p.oneOf("/*%"));
 let additionOp = lexeme(p.oneOf("+-"));
@@ -131,8 +183,8 @@ let andOp = lexeme(p.string("&&"));
 let orOp = lexeme(p.string("||"));
 let assignmentOp = lexeme(p.either(p.char("="), p.string("*="), p.string("/="), p.string("%="), p.string("+="), p.string("-=")));
 
-let nilLiteral = p.fmap(() : Literal => { return { value : null }; }, lexeme(p.string("nil")));
-let booleanLiteral = p.either(p.fmap(() : Literal => { return { value : true }; }, lexeme(p.string("true"))), p.fmap(() => { return { value : false }; }, lexeme(p.string("false"))));
+let nilLiteral = p.fmap(() : Literal => { return { value : null }; }, keyword("nil"));
+let booleanLiteral = p.either(p.fmap(() : Literal => { return { value : true }; }, keyword("true")), p.fmap(() => { return { value : false }; }, keyword("false")));
 let numberLiteral = p.fmap((v : number) : Literal => { return { value : v }; }, lexeme(decimalNumber));
 let stringLiteral = p.fmap((s : string) : Literal => { return { value : s }; }, lexeme(quotedString));
 
@@ -149,12 +201,12 @@ let validName = lexeme(p.bind(p.oneOf(nonDigitIdentCharacters), (leadChar : stri
 {
   return p.many(p.oneOf(identCharacters), leadChar, (s, r) => s + r)(input);
 }));
-let identifier = p.fmap((s : string) : Ident => { return { name : s }; }, validName);
-let primaryExpr = p.either(literal, identifier, p.discardLeft(lexeme(p.string("var")), identifier), p.discardLeft(openParen, p.discardRight(expr, closeParen)));
-let bracketAccess = p.fmap((e : Expr) : BracketAccess => { return { index : e }; }, p.discardLeft(openBracket, p.discardRight(expr, closeBracket)));
+let identifier = p.fmap((s : string) : Ident => { return { name : s }; }, p.bind(validName, (name : string, input : StringView) => keywords.find((e) => e === name) ? null : new p.ParseInfo<string>(name, input)));
+let primaryExpr = p.either(literal, identifier, p.enclosed(openParen, expr, closeParen));
+let bracketAccess = p.fmap((e : Expr) : BracketAccess => { return { index : e }; }, p.enclosed(openBracket, expr, closeBracket));
 let dotAccess = p.fmap((i : Ident) : DotAccess => { return { index : i }; }, p.discardLeft(dotOp, identifier));
 let exprList = separatedBy(expr, comma);
-let functionCall = p.fmap((args : Expr[]) : FuncCall => { return { args : args }; }, p.discardLeft(openParen, p.discardRight(exprList, closeParen)));
+let functionCall = p.fmap((args : Expr[]) : FuncCall => { return { args : args }; }, p.enclosed(openParen, exprList, closeParen));
 let postfix = p.either(p.fmap((v) : PostFixOp => v, bracketAccess), p.fmap((v) : PostFixOp => v, dotAccess), p.fmap((v) : PostFixOp => v, functionCall));
 let postfixExpr = p.combine(primaryExpr, p.many(postfix, [], (acc, op) => acc.concat({ op : op, lhs : null })), (expr, ops) : Expr =>
 {
@@ -190,7 +242,9 @@ let equalityExpr = binaryExpr(relationExpr, equalityOp);
 let xorExpr = binaryExpr(equalityExpr, xorOp);
 let andExpr = binaryExpr(xorExpr, andOp);
 let orExpr = binaryExpr(andExpr, orOp);
-let assignmentExpr = p.combine(orExpr, p.option(null, p.combine(assignmentOp, orExpr, (o, e) : [string, Expr] => [o, e])), (lhs, rhs) =>
+exprImpl.parser = orExpr;
+
+let assignment = p.combine(p.either(postfixExpr, p.discardLeft(keyword("var"), identifier)), p.option(null, p.combine(assignmentOp, expr, (o, e) : [string, Expr] => [o, e])), (lhs, rhs) =>
 {
   if (!rhs)
     return lhs;
@@ -198,7 +252,53 @@ let assignmentExpr = p.combine(orExpr, p.option(null, p.combine(assignmentOp, or
   let [op, expr] = rhs;
   return { op : op, lhs : lhs, rhs : expr };
 });
-exprImpl.parser = assignmentExpr;
+
+let stmtImpl : { parser : p.Parser<Statement> } = { parser : null };
+let statement = (input : StringView) : p.ParseResult<Statement> => { return stmtImpl.parser(input); };
+let breakStmt = p.fmap(() : BreakStatement => { return {}; }, p.discardRight(keyword("break"), semicolon));
+let continueStmt = p.fmap(() : ContinueStatement => { return {}; }, p.discardRight(keyword("continue"), semicolon));
+let returnStmt = p.fmap((e) : ReturnStatement => { return { expr : e }; }, p.discardRight(p.discardLeft(keyword("return"), expr), semicolon));
+let jumpStmt = p.either(p.fmap((v) : JumpStatement => v, breakStmt), p.fmap((v) : JumpStatement => v, continueStmt), p.fmap((v) : JumpStatement => v, returnStmt));
+let statements =  p.many(statement, [], (acc, r) => acc.concat([r]));
+let compoundStatement = p.enclosed(openBrace, statements, closeBrace);
+let ifStatement = p.combine(
+  p.combine(
+    p.discardLeft(keyword("if"), p.enclosed(openParen, expr, closeParen)),
+    statement,
+    (cond, stmt) =>
+    {
+      return { condition : cond, statement : stmt };
+    }
+  ),
+  p.option(null, p.discardLeft(keyword("else"), statement)),
+  (ifStmt, elseStmt) : IfStatement =>
+  {
+    return { condition : ifStmt.condition, statement : ifStmt.statement, elseStatement : elseStmt };
+  }
+);
+let whileStatement = p.combine(p.discardLeft(keyword("while"), p.enclosed(openParen, expr, closeParen)), statement, (cond, stmt) : WhileStatement => { return { condition : cond, statement : stmt }; });
+let forSpec = p.combine(
+  p.combine(
+    p.discardRight(p.option(null, assignment), semicolon),
+    p.discardRight(p.option(null, expr), semicolon),
+    (init, cond) =>
+    {
+      return { init : init, cond : cond };
+    }
+  ),
+  p.option(null, assignment),
+  (forSpec, after) =>
+  {
+    return { init : forSpec.init, cond : forSpec.cond, after : after };
+  }
+);
+let forStatement = p.combine(p.discardLeft(keyword("for"), p.enclosed(openParen, forSpec, closeParen)), statement, (forSpec, stmt) : ForStatement =>
+{
+  return { init : forSpec.init, condition : forSpec.cond, afterthought : forSpec.after, statement : stmt };
+});
+stmtImpl.parser = p.either(semicolon, p.discardRight(expr, semicolon), p.discardRight(assignment, semicolon), compoundStatement, jumpStmt, ifStatement, whileStatement, forStatement);
+
+let program = p.discardRight(statements, p.discardRight(p.skipWhitespace(), p.end()));
 
 export function parseQuotedString(input : string) : string | null
 {
@@ -216,7 +316,10 @@ export function parseNumber(input : string) : number | null
     : result.output;
 };
 
-export function parseExpression(input : string) : boolean
+export function parseProgram(input : string) : Statement[] | null
 {
-  return expr(new StringView(input)) !== null;
+  let result = program(new StringView(input));
+  return result === null
+    ? null
+    : result.output;
 };
