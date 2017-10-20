@@ -10,7 +10,10 @@ export class ParseInfo<T>
 
 export type ParseResult<T> = ParseInfo<T> | null;
 
-export type Parser<T> = (input : StringView) => ParseResult<T>;
+export interface Parser<T>
+{
+  (input : StringView) : ParseResult<T>;
+};
 
 export function fmap<T, U>(fn : (t : T) => U, parser : Parser<T>) : Parser<U>
 {
@@ -42,6 +45,26 @@ export function lift<T>(t : T) : Parser<T>
 export function fail<T>() : Parser<T>
 {
   return () : ParseResult<T> => null;
+};
+
+export function end() : Parser<null>
+{
+  return (input : StringView) : ParseResult<null> =>
+  {
+    return input.empty()
+      ? new ParseInfo<null>(null, input)
+      : null;
+  };
+};
+
+export function discardLeft<T1, T2>(left : Parser<T1>, right : Parser<T2>) : Parser<T2>
+{
+  return combine(left, right, (_, r) => r);
+};
+
+export function discardRight<T1, T2>(left : Parser<T1>, right : Parser<T2>) : Parser<T1>
+{
+  return combine(left, right, (r, _) => r);
 };
 
 export function either<T>(...parsers : Parser<T>[]) : Parser<T>
