@@ -144,6 +144,23 @@ export function many1<T, U>(parser : Parser<T>, init : U, fn : (acc : U, value :
   };
 };
 
+export function separatedBy<T, U, S>(parser : Parser<T>, separator : Parser<S>, init : U, fn : (acc : U, value : T) => U) : Parser<U>
+{
+  return option(
+    init,
+    bind(parser,
+      (first : T, input : StringView) =>
+      {
+        return many(
+          discardLeft(separator, parser),
+          fn(init, first),
+          fn
+        )(input);
+      }
+    )
+  );
+};
+
 export function char(c : string) : Parser<string>
 {
   return (input : StringView) : ParseResult<string> =>
