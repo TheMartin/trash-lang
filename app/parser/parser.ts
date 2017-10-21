@@ -215,6 +215,16 @@ export function string(s : string) : Parser<string>
   };
 };
 
+export function not(s : string) : Parser<string>
+{
+  return (input : StringView) : ParseResult<string> =>
+  {
+    return input.val.substr(input.start, s.length) === s
+      ? null
+      : new ParseInfo<string>(input.get(0), input.sub(1));
+  };
+};
+
 export function skipWhitespace() : Parser<null>
 {
   return many(

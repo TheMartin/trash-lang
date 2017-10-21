@@ -8,9 +8,13 @@ let nonDigitIdentCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVW
 let identCharacters = digits + nonDigitIdentCharacters;
 let keywords = ["var", "true", "false", "nil", "function", "if", "else", "for", "while", "return", "break", "continue"];
 
+let oneLineComment = p.discardLeft(p.string("//"), p.many(p.noneOf("\n\r"), null, () => null));
+let multiLineComment = p.enclosed(p.string("/*"), p.many(p.not("*/"), null, () => null), p.string("*/"));
+let skipWhitespaceAndComments = p.many(p.either(oneLineComment, multiLineComment, p.char(" "), p.char("\t"), p.char("\r"), p.char("\n")), null, () => null);
+
 function lexeme<T>(parser : p.Parser<T>) : p.Parser<T>
 {
-  return p.discardLeft(p.skipWhitespace(), parser);
+  return p.discardLeft(skipWhitespaceAndComments, parser);
 };
 
 function keyword(word : string) : p.Parser<string>
@@ -84,6 +88,7 @@ let dotOp = lexeme(p.char("."));
 let comma = lexeme(p.char(","));
 let semicolon = lexeme(p.char(";"));
 let colon = lexeme(p.char(":"));
+let eof = lexeme(p.end());
 
 function op(opType : ast.Op, opString : string) : p.Parser<ast.Op>
 {
@@ -216,7 +221,7 @@ let forSpec = p.combine(
 let forStatement = p.combine(p.discardLeft(keyword("for"), p.enclosed(openParen, forSpec, closeParen)), statement, (forSpec, stmt) => new ast.ForStatement(forSpec.init, forSpec.cond, forSpec.after, stmt));
 stmtImpl.parser = p.either(p.fmap(() => new ast.EmptyStatement(), semicolon), p.discardRight(declaration, semicolon), p.discardRight(expr, semicolon), p.discardRight(assignment, semicolon), block, jumpStmt, ifStatement, whileStatement, forStatement);
 
-let program = p.fmap((stmts) => new ast.Block(stmts), p.discardRight(statements, p.discardRight(p.skipWhitespace(), p.end())));
+let program = p.fmap((stmts) => new ast.Block(stmts), p.discardRight(statements, eof));
 
 export function parseQuotedString(input : string) : string | null
 {
