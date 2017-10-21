@@ -65,7 +65,7 @@ interface VarDecl
 
 type Expr = Literal | Ident | UnaryExpr | BinaryExpr | PostFixExpr;
 
-type Statement = Expr | JumpStatement | IfStatement | WhileStatement | ForStatement | CompoundStatement;
+type Statement = Expr | JumpStatement | IfStatement | WhileStatement | ForStatement | CompoundStatement | EmptyStatement;
 
 type JumpStatement = ReturnStatement | BreakStatement | ContinueStatement;
 
@@ -79,6 +79,10 @@ interface BreakStatement
 };
 
 interface ContinueStatement
+{
+};
+
+interface EmptyStatement
 {
 };
 
@@ -234,7 +238,7 @@ let bracketAccess = p.fmap((e : Expr) : BracketAccess => { return { index : e };
 let dotAccess = p.fmap((i : Ident) : DotAccess => { return { index : i }; }, p.discardLeft(dotOp, identifier));
 let exprList = separatedBy(expr, comma);
 let functionCall = p.fmap((args : Expr[]) : FuncCall => { return { args : args }; }, p.enclosed(openParen, exprList, closeParen));
-let postfix = p.either(p.fmap((v) : PostFixOp => v, bracketAccess), p.fmap((v) : PostFixOp => v, dotAccess), p.fmap((v) : PostFixOp => v, functionCall));
+let postfix = p.either(p.fmap((v) => v as PostFixOp, bracketAccess), p.fmap((v) => v as PostFixOp, dotAccess), p.fmap((v) => v as PostFixOp, functionCall));
 let postfixExpr = p.combine(primaryExpr, p.many(postfix, [], (acc, op) => acc.concat({ op : op, lhs : null })), (expr, ops) : Expr =>
 {
   let result = expr;
@@ -324,7 +328,7 @@ let forStatement = p.combine(p.discardLeft(keyword("for"), p.enclosed(openParen,
 {
   return { init : forSpec.init, condition : forSpec.cond, afterthought : forSpec.after, statement : stmt };
 });
-stmtImpl.parser = p.either(semicolon, p.discardRight(expr, semicolon), p.discardRight(assignment, semicolon), compoundStatement, jumpStmt, ifStatement, whileStatement, forStatement);
+stmtImpl.parser = p.either(p.fmap(() => { return {}; }, semicolon), p.discardRight(expr, semicolon), p.discardRight(assignment, semicolon), compoundStatement, jumpStmt, ifStatement, whileStatement, forStatement);
 
 let program = p.discardRight(statements, p.discardRight(p.skipWhitespace(), p.end()));
 

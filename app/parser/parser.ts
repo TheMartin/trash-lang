@@ -192,7 +192,7 @@ export function string(s : string) : Parser<string>
 {
   return (input : StringView) : ParseResult<string> =>
   {
-    return (input.length >= s.length && input.val.includes(s, input.start))
+    return input.val.substr(input.start, s.length) === s
       ? new ParseInfo<string>(s, input.sub(s.length))
       : null;
   };
