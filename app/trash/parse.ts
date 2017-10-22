@@ -144,7 +144,7 @@ let postfixExpr = p.combine(primaryExpr, p.many(postfix, [], (acc, op) => acc.co
   let result = expr;
   for (let op of ops)
   {
-    result = new ast.PostFixExpr(op, result)
+    result = new ast.PostFixExpr(op, result);
   }
   return result;
 });

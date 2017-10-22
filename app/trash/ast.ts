@@ -27,7 +27,7 @@ export enum Op
 
 export class FunctionDef
 {
-  constructor(public args : Ident[], public body : Statement) {}
+  constructor(public params : Ident[], public body : Statement) {}
 };
 
 export class ObjectDef
@@ -59,7 +59,7 @@ export type PostFixOp = FunctionCall | BracketAccess | DotAccess;
 
 export class PostFixExpr
 {
-  constructor(public op : PostFixOp, lhs : Expr) {}
+  constructor(public op : PostFixOp, public lhs : Expr) {}
 };
 
 export class FunctionCall
