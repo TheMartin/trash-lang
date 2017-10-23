@@ -100,7 +100,6 @@ let validName = p.bind(p.oneOf(nonDigitIdentCharacters), (leadChar : string, inp
 });
 
 let token = p.either(
-  lexeme(p.end(), TokenType.Eof),
   lexeme(quotedString, TokenType.String),
   lexeme(decimalNumber, TokenType.Number),
   keyword("if", TokenType.If),
@@ -149,7 +148,10 @@ let token = p.either(
   keyword("<", TokenType.Less)
 );
 
-let tokens = p.many(token, [], (acc, t) => acc.concat([t]));
+let tokens = p.bind(
+  p.many(token, [], (acc, t) => acc.concat([t])),
+  (tokens : Token[], rest : p.ParserInput) => new p.ParseInfo([...tokens, new Token(TokenType.Eof, rest.pos() as Position)], rest, false)
+);
 
 export function tokenize(input : string) : Token[]
 {
