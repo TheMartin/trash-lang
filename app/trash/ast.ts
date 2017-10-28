@@ -1,8 +1,13 @@
 import * as t from "../trash/lex";
 
-interface Node
+interface VisitableExpr
 {
-  accept<T>(visitor : Visitor<T>) : T;
+  accept<T>(visitor : ExprVisitor<T>) : T;
+};
+
+interface VisitableStmt
+{
+  accept<T>(visitor : StmtVisitor<T>) : T;
 };
 
 export class Op
@@ -10,145 +15,156 @@ export class Op
   constructor(public token : t.Token) {}
 };
 
-export class FunctionDef implements Node
+export class FunctionDef implements VisitableExpr
 {
-  constructor(public params : Ident[], public body : Statement) {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitFunctionDefinition(this); }
+  constructor(public params : Ident[], public body : Block) {}
+  accept<T>(visitor : ExprVisitor<T>) : T { return visitor.visitFunctionDefinition(this); }
 };
 
-export class ObjectDef implements Node
+export class ObjectDef implements VisitableExpr
 {
   constructor(public contents : { key : Ident | Expr, value : Expr }[]) {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitObjectDefinition(this); }
+  accept<T>(visitor : ExprVisitor<T>) : T { return visitor.visitObjectDefinition(this); }
 };
 
-export class Literal implements Node
+export class Literal implements VisitableExpr
 {
   constructor(public token : t.Token) {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitLiteral(this); }
+  accept<T>(visitor : ExprVisitor<T>) : T { return visitor.visitLiteral(this); }
 };
 
-export class Ident implements Node
+export class Ident implements VisitableExpr
 {
   constructor(public token : t.Token) {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitIdentifier(this); }
+  accept<T>(visitor : ExprVisitor<T>) : T { return visitor.visitIdentifier(this); }
 };
 
-export class UnaryExpr implements Node
+export class UnaryExpr implements VisitableExpr
 {
   constructor(public op : Op, public rhs : Expr) {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitUnaryExpression(this); }
+  accept<T>(visitor : ExprVisitor<T>) : T { return visitor.visitUnaryExpression(this); }
 };
 
-export class BinaryExpr implements Node
+export class BinaryExpr implements VisitableExpr
 {
   constructor(public op : Op, public lhs : Expr, public rhs : Expr) {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitBinaryExpression(this); }
+  accept<T>(visitor : ExprVisitor<T>) : T { return visitor.visitBinaryExpression(this); }
 };
 
-export type PostfixOp = FunctionCall | BracketAccess | DotAccess;
-
-export class PostfixExpr implements Node
+export class FunctionCall implements VisitableExpr
 {
-  constructor(public op : PostfixOp, public lhs : Expr) {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitPostfixExpression(this); }
+  constructor(public callee : Expr, public args : Expr[]) {}
+  accept<T>(visitor : ExprVisitor<T>) : T { return visitor.visitFunctionCall(this); }
 };
 
-export class FunctionCall implements Node
+export class BracketAccess implements VisitableExpr
 {
-  constructor(public args : Expr[]) {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitFunctionCall(this); }
+  constructor(public lhs : Expr, public index : Expr) {}
+  accept<T>(visitor : ExprVisitor<T>) : T { return visitor.visitBracketAccess(this); }
 };
 
-export class BracketAccess implements Node
+export class DotAccess implements VisitableExpr
 {
-  constructor(public index : Expr) {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitBracketAccess(this); }
+  constructor(public lhs : Expr, public index : Ident) {}
+  accept<T>(visitor : ExprVisitor<T>) : T { return visitor.visitDotAccess(this); }
 };
 
-export class DotAccess implements Node
-{
-  constructor(public index : Ident) {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitDotAccess(this); }
-};
+export type Expr = Literal | ObjectDef | FunctionDef | Ident | UnaryExpr | BinaryExpr | FunctionCall | BracketAccess | DotAccess;
 
-export type Expr = Literal | ObjectDef | FunctionDef | Ident | UnaryExpr | BinaryExpr | PostfixExpr;
-
-export type Statement = Expr | VarDeclaration | JumpStatement | IfStatement | WhileStatement | ForStatement | Block | EmptyStatement;
+export type Statement = ExprStatement | Assignment | VarDeclaration | JumpStatement | IfStatement | WhileStatement | ForStatement | Block | EmptyStatement;
 
 export type JumpStatement = ReturnStatement | BreakStatement | ContinueStatement;
 
-export class VarDeclaration implements Node
+export class Assignment implements VisitableStmt
+{
+  constructor(public op : Op, public lhs : Expr, public rhs : Expr) {}
+  accept<T>(visitor : StmtVisitor<T>) : T { return visitor.visitAssignment(this); }
+};
+
+export class VarDeclaration implements VisitableStmt
 {
   constructor(public name : Ident, public initializer : Expr) {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitVarDeclaration(this); }
+  accept<T>(visitor : StmtVisitor<T>) : T { return visitor.visitVarDeclaration(this); }
 };
 
-export class ReturnStatement implements Node
+export class ExprStatement implements VisitableStmt
 {
   constructor(public expr : Expr) {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitReturnStatement(this); }
+  accept<T>(visitor : StmtVisitor<T>) : T { return visitor.visitExpressionStatement(this); }
 };
 
-export class BreakStatement implements Node
+export class ReturnStatement implements VisitableStmt
+{
+  constructor(public expr : Expr) {}
+  accept<T>(visitor : StmtVisitor<T>) : T { return visitor.visitReturnStatement(this); }
+};
+
+export class BreakStatement implements VisitableStmt
 {
   constructor() {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitBreakStatement(this); }
+  accept<T>(visitor : StmtVisitor<T>) : T { return visitor.visitBreakStatement(this); }
 };
 
-export class ContinueStatement implements Node
+export class ContinueStatement implements VisitableStmt
 {
   constructor() {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitContinueStatement(this); }
+  accept<T>(visitor : StmtVisitor<T>) : T { return visitor.visitContinueStatement(this); }
 };
 
-export class EmptyStatement
+export class EmptyStatement implements VisitableStmt
 {
   constructor() {}
+  accept<T>(visitor : StmtVisitor<T>) : T { return visitor.visitEmptyStatement(this); }
 };
 
-export class Block implements Node
+export class Block implements VisitableStmt
 {
   constructor(public statements : Statement[]) {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitBlock(this); }
+  accept<T>(visitor : StmtVisitor<T>) : T { return visitor.visitBlock(this); }
 };
 
-export class IfStatement implements Node
+export class IfStatement implements VisitableStmt
 {
   constructor(public condition : Expr, public statement : Statement, public elseStatement : Statement | null) {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitIfStatement(this); }
+  accept<T>(visitor : StmtVisitor<T>) : T { return visitor.visitIfStatement(this); }
 };
 
-export class WhileStatement implements Node
+export class WhileStatement implements VisitableStmt
 {
   constructor(public condition : Expr, public statement : Statement) {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitWhileStatement(this); }
+  accept<T>(visitor : StmtVisitor<T>) : T { return visitor.visitWhileStatement(this); }
 };
 
-export type ForInit = VarDeclaration | Expr;
+export type ForInit = VarDeclaration | Assignment;
 
-export class ForStatement implements Node
+export class ForStatement implements VisitableStmt
 {
-  constructor(public init : ForInit | null, public condition : Expr | null, public afterthought : Expr | null, public statement : Statement) {}
-  accept<T>(visitor : Visitor<T>) : T { return visitor.visitForStatement(this); }
+  constructor(public init : ForInit | null, public condition : Expr | null, public afterthought : Assignment | null, public statement : Statement) {}
+  accept<T>(visitor : StmtVisitor<T>) : T { return visitor.visitForStatement(this); }
 };
 
-export interface Visitor<T>
+export interface ExprVisitor<T>
 {
   visitLiteral(literal : Literal) : T;
   visitObjectDefinition(def : ObjectDef) : T;
   visitFunctionDefinition(def : FunctionDef) : T;
   visitIdentifier(ident : Ident) : T;
   visitUnaryExpression(expr : UnaryExpr) : T;
-  visitPostfixExpression(expr : PostfixExpr) : T;
   visitFunctionCall(expr : FunctionCall) : T;
   visitBracketAccess(expr : BracketAccess) : T;
   visitDotAccess(expr : DotAccess) : T;
   visitBinaryExpression(expr : BinaryExpr) : T;
+};
+
+export interface StmtVisitor<T>
+{
+  visitAssignment(stmt : Assignment): T;
   visitVarDeclaration(decl : VarDeclaration) : T;
+  visitExpressionStatement(stmt : ExprStatement) : T;
   visitReturnStatement(stmt : ReturnStatement) : T;
   visitBreakStatement(stmt : BreakStatement) : T;
   visitContinueStatement(stmt : ContinueStatement) : T;
+  visitEmptyStatement(stmt : EmptyStatement) : T;
   visitBlock(block : Block) : T;
   visitIfStatement(stmt : IfStatement) : T;
   visitWhileStatement(stmt : WhileStatement) : T;

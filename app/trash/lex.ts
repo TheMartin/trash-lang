@@ -1,7 +1,7 @@
 import * as p from "../parser/parser";
 import { StringView, Position } from "../stringView/stringView";
 
-export enum TokenType
+export enum Type
 {
   LeftParen, RightParen, LeftBracket, RightBracket, LeftBrace, RightBrace,
   Comma, Dot, Colon, Semicolon, Minus, Plus, Slash, Star, Percent,
@@ -21,7 +21,7 @@ export enum TokenType
 
 export class Token
 {
-  constructor(public type : TokenType, public pos : Position, public value : string | number | boolean | null = null) {}
+  constructor(public type : Type, public pos : Position, public value : string | number | boolean | null = null) {}
 };
 
 let nonZeroDigits = "123456789";
@@ -33,12 +33,12 @@ let oneLineComment = p.discardLeft(p.string("//"), p.many(p.noneOf("\n\r"), null
 let multiLineComment = p.enclosed(p.string("/*"), p.many(p.not("*/"), null, () => null), p.string("*/"));
 let skipWhitespaceAndComments = p.many(p.try_(p.either(oneLineComment, multiLineComment, p.char(" "), p.char("\t"), p.char("\r"), p.char("\n"))), null, () => null);
 
-function lexeme(parser : p.Parser<string | number>, type : TokenType, value? : string | number | boolean | null) : p.Parser<Token>
+function lexeme(parser : p.Parser<string | number>, type : Type, value? : string | number | boolean | null) : p.Parser<Token>
 {
   return p.discardLeft(skipWhitespaceAndComments, p.fmap((t) => new Token(type, t.first as Position, value !== undefined ? value : t.second), p.positional(parser)));
 };
 
-function keyword(word : string, type : TokenType, value? : string | number | boolean | null) : p.Parser<Token>
+function keyword(word : string, type : Type, value? : string | number | boolean | null) : p.Parser<Token>
 {
   return lexeme(p.string(word), type, value);
 };
@@ -100,57 +100,57 @@ let validName = p.bind(p.oneOf(nonDigitIdentCharacters), (leadChar : string, inp
 });
 
 let token = p.either(
-  lexeme(quotedString, TokenType.String),
-  lexeme(decimalNumber, TokenType.Number),
-  keyword("if", TokenType.If),
-  keyword("else", TokenType.Else),
-  keyword("for", TokenType.For),
-  keyword("while", TokenType.While),
-  keyword("return", TokenType.Return),
-  keyword("break", TokenType.Break),
-  keyword("continue", TokenType.Continue),
-  keyword("var", TokenType.Var),
-  keyword("function", TokenType.Function),
-  keyword("nil", TokenType.Nil, null),
-  keyword("false", TokenType.False, false),
-  keyword("true", TokenType.True, true),
-  lexeme(validName, TokenType.Identifier),
-  keyword("&&", TokenType.DoubleAmpersand),
-  keyword("||", TokenType.DoublePipe),
-  keyword("!=", TokenType.BangEqual),
-  keyword("==", TokenType.EqualEqual),
-  keyword(">=", TokenType.GreaterEqual),
-  keyword("<=", TokenType.LessEqual),
-  keyword("+=", TokenType.PlusEqual),
-  keyword("-=", TokenType.MinusEqual),
-  keyword("*=", TokenType.StarEqual),
-  keyword("/=", TokenType.SlashEqual),
-  keyword("%=", TokenType.PercentEqual),
-  keyword("(", TokenType.LeftParen),
-  keyword(")", TokenType.RightParen),
-  keyword("[", TokenType.LeftBracket),
-  keyword("]", TokenType.RightBracket),
-  keyword("{", TokenType.LeftBrace),
-  keyword("}", TokenType.RightBrace),
-  keyword(",", TokenType.Comma),
-  keyword(".", TokenType.Dot),
-  keyword(":", TokenType.Colon),
-  keyword(";", TokenType.Semicolon),
-  keyword("-", TokenType.Minus),
-  keyword("+", TokenType.Plus),
-  keyword("/", TokenType.Slash),
-  keyword("*", TokenType.Star),
-  keyword("%", TokenType.Percent),
-  keyword("^", TokenType.Caret),
-  keyword("!", TokenType.Bang),
-  keyword("=", TokenType.Equal),
-  keyword(">", TokenType.Greater),
-  keyword("<", TokenType.Less)
+  lexeme(quotedString, Type.String),
+  lexeme(decimalNumber, Type.Number),
+  keyword("if", Type.If),
+  keyword("else", Type.Else),
+  keyword("for", Type.For),
+  keyword("while", Type.While),
+  keyword("return", Type.Return),
+  keyword("break", Type.Break),
+  keyword("continue", Type.Continue),
+  keyword("var", Type.Var),
+  keyword("function", Type.Function),
+  keyword("nil", Type.Nil, null),
+  keyword("false", Type.False, false),
+  keyword("true", Type.True, true),
+  lexeme(validName, Type.Identifier),
+  keyword("&&", Type.DoubleAmpersand),
+  keyword("||", Type.DoublePipe),
+  keyword("!=", Type.BangEqual),
+  keyword("==", Type.EqualEqual),
+  keyword(">=", Type.GreaterEqual),
+  keyword("<=", Type.LessEqual),
+  keyword("+=", Type.PlusEqual),
+  keyword("-=", Type.MinusEqual),
+  keyword("*=", Type.StarEqual),
+  keyword("/=", Type.SlashEqual),
+  keyword("%=", Type.PercentEqual),
+  keyword("(", Type.LeftParen),
+  keyword(")", Type.RightParen),
+  keyword("[", Type.LeftBracket),
+  keyword("]", Type.RightBracket),
+  keyword("{", Type.LeftBrace),
+  keyword("}", Type.RightBrace),
+  keyword(",", Type.Comma),
+  keyword(".", Type.Dot),
+  keyword(":", Type.Colon),
+  keyword(";", Type.Semicolon),
+  keyword("-", Type.Minus),
+  keyword("+", Type.Plus),
+  keyword("/", Type.Slash),
+  keyword("*", Type.Star),
+  keyword("%", Type.Percent),
+  keyword("^", Type.Caret),
+  keyword("!", Type.Bang),
+  keyword("=", Type.Equal),
+  keyword(">", Type.Greater),
+  keyword("<", Type.Less)
 );
 
 let tokens = p.bind(
   p.many(token, [], (acc, t) => acc.concat([t])),
-  (tokens : Token[], rest : p.ParserInput) => new p.ParseInfo([...tokens, new Token(TokenType.Eof, rest.pos() as Position)], rest, false)
+  (tokens : Token[], rest : p.ParserInput) => new p.ParseInfo([...tokens, new Token(Type.Eof, rest.pos() as Position)], rest, false)
 );
 
 export function tokenize(input : string) : Token[]

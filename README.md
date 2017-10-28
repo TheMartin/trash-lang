@@ -5,7 +5,7 @@
 Current status:
 * parsing mostly works
 * error reporting sort of works
-* no interpretation yet
+* interpretation mostly works
 * clunky testing interface
 
 ## How to build
@@ -36,16 +36,27 @@ a = nil;   // A nil type is also available
 var erika = {  // An object type is available and uses Javascript-like syntaxx
   firstName : "Erika",
   lastName : "Mustermann",
-  ["age"] : 26 // Non-identifier keys are also available
+  ["age"] : 26, // Non-identifier keys are also available
+  [b] : "bar",  // Bracket notation will use the result of the inner expression as the key
 };
 
 // Object properties can be accessed with dot-syntax as well as with bracket-syntax
 var firstName = erika.firstName;
 var lastName = erika["lastName"];
 
-var foo = function(a, b) // Functions are a first-class type and form closures
+var foo = function(a, b) // Functions are a first-class type
 {
   return a + b; // Single return value. If there is no return, the function behaves as if it returned nil
+};
+
+var makeCounter = function()
+{
+  var i = 0;
+  return function() // Functions form closures
+  {
+    i += 1;
+    return i;
+  };
 };
 
 // Following operators are available:

@@ -1,7 +1,8 @@
 import { parseProgram } from "./trash/parse";
-import { TokenType, Token, tokenize } from "./trash/lex";
 import { ErrorInfo } from "./parser/parser";
 import { Position } from "./stringView/stringView";
+import * as ast from "./trash/ast";
+import * as trash from "./trash/interpret";
 
 function formatError(error : ErrorInfo) : string
 {
@@ -12,36 +13,73 @@ function formatError(error : ErrorInfo) : string
     + (error.context ? " while parsing " + error.context : "");
 };
 
-function formatTokens(tokens : Token[]) : string
+class NativeCallable extends trash.Callable
 {
-  let result = "";
-  let line = 0;
-  for (let token of tokens)
+  constructor(private _fn : (...args : trash.Value[]) => trash.Value)
   {
-    while (token.pos.line > line)
-    {
-      result += "\n";
-      ++line;
-    }
-
-    result += TokenType[token.type];
-    if (token.value !== null)
-      result += "(" + token.value + ")";
-
-    result += " ";
+    super();
   }
-  return result;
+
+  call(interpreter : trash.Interpreter, args : trash.Value[]) : trash.Value
+  {
+    return this._fn(...args);
+  }
 };
 
-document.getElementById("parse").addEventListener("click", () =>
+function toString(value : trash.Value) : string
+{
+  if (value instanceof trash.Callable)
+  {
+    return "[function]";
+  }
+  else if (value instanceof trash.Indexable)
+  {
+    return "[object]";
+  }
+  else if (value === null)
+  {
+    return "nil";
+  }
+  else
+  {
+    return value as string;
+  }
+}
+
+function runProgram(program : ast.Block) : string
+{
+  let environment = new trash.Environment();
+  let interpreter = new trash.Interpreter();
+  let output : string[] = [];
+  let print = new NativeCallable((...args : trash.Value[]) =>
+  {
+    output.push(args.map(toString).join(" "));
+    return null;
+  });
+  environment = environment.assign("print", print)
+  try
+  {
+    interpreter.executeBlock(program, environment);
+  }
+  catch (e)
+  {
+    if (e instanceof trash.InternalError)
+    {
+      output.push("internal error: " + e.message);
+    }
+    else if (e instanceof trash.InterpretError)
+    {
+      output.push((e.token ? "error on line " + (e.token.pos.line + 1) + ":" + (e.token.pos.col + 1) + ": " : "error: ") + e.message);
+    }
+  }
+  return output.join("\n");
+}
+
+document.getElementById("run").addEventListener("click", () =>
 {
   let result = parseProgram((document.getElementById("input") as HTMLInputElement).value);
   let output = (result as ErrorInfo).message === undefined
-    ? JSON.stringify(result, null, 2)
+    ? runProgram(result as ast.Block)
     : formatError(result as ErrorInfo)
-  /*
-  let result = tokenize((document.getElementById("input") as HTMLInputElement).value);
-  let output = formatTokens(result);
-  */
   document.getElementById("result").innerText = output;
 });
