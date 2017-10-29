@@ -1,6 +1,4 @@
-import * as p from "./trash/parse";
-import * as ast from "./trash/ast";
-import * as trash from "./trash/interpret";
+import * as trash from "./trash/trash";
 
 class NativeFunction extends trash.Callable
 {
@@ -15,16 +13,19 @@ class NativeFunction extends trash.Callable
   }
 };
 
-function runProgram(program : ast.Block, output : string[]) : void
+function runProgram(program : trash.Program, output : string[]) : void
 {
-  let environment = new trash.Environment();
+  let environment = new trash.Environment([
+    [
+      "print",
+      new NativeFunction((...args : trash.Value[]) =>
+      {
+        output.push(args.map(trash.toString).join(" "));
+        return null;
+      })
+    ]
+  ]);
   let interpreter = new trash.Interpreter();
-  let print = new NativeFunction((...args : trash.Value[]) =>
-  {
-    output.push(args.map(trash.toString).join(" "));
-    return null;
-  });
-  environment = environment.assign("print", print);
   interpreter.executeBlock(program, environment);
 }
 
@@ -33,22 +34,22 @@ document.getElementById("run").addEventListener("click", () =>
   let output : string[] = [];
   try
   {
-    let program = p.parseProgram((document.getElementById("input") as HTMLInputElement).value);
+    let program = trash.parse((document.getElementById("input") as HTMLInputElement).value);
     runProgram(program, output);
   }
   catch (e)
   {
-    if (e instanceof p.ParseError)
+    if (e instanceof trash.ParseError)
+    {
+      output.push((e.pos ? "error on line " + (e.pos.line + 1) + ":" + (e.pos.col + 1) + ": " : "error: ") + e.message);
+    }
+    else if (e instanceof trash.InterpretError)
     {
       output.push((e.token ? "error on line " + (e.token.pos.line + 1) + ":" + (e.token.pos.col + 1) + ": " : "error: ") + e.message);
     }
     else if (e instanceof trash.InternalError)
     {
       output.push("internal error: " + e.message);
-    }
-    else if (e instanceof trash.InterpretError)
-    {
-      output.push((e.token ? "error on line " + (e.token.pos.line + 1) + ":" + (e.token.pos.col + 1) + ": " : "error: ") + e.message);
     }
   }
   document.getElementById("result").innerText = output.join("\n");

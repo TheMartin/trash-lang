@@ -38,11 +38,7 @@ class TrashFunction extends Callable
     if (args.length !== this.definition.params.length)
       throw new InterpretError("arity mismatch in function call");
 
-    let env = new Environment(this.closure);
-    for (let i = 0; i < args.length; ++i)
-    {
-      env = env.assign(this.definition.params[i].token.value as string, args[i]);
-    }
+    let env = this.closure.extend(args.map((arg, i) : [string, Value] => [this.definition.params[i].token.value as string, arg]));
     let result = interpreter.executeBlock(this.definition.body, env);
     if (!result)
     {
@@ -117,12 +113,12 @@ class Accessor
 
 export enum Type
 {
-  Nil,
-  Boolean,
-  Number,
-  String,
-  Function,
-  Object
+  Nil = "nil",
+  Boolean = "boolean",
+  Number = "number",
+  String = "string",
+  Function = "function",
+  Object = "object"
 };
 
 export function toString(value : Value) : string
@@ -191,7 +187,11 @@ type Result = null | Break | Continue | Return;
 
 export class Environment
 {
-  constructor(public previous? : Environment) {}
+  constructor(contents? : Iterable<[string, Value]>)
+  {
+    if (contents)
+      this._contents = new Map<string, Value>(contents);
+  }
 
   get(key : string) : Value
   {
@@ -200,9 +200,9 @@ export class Environment
     {
       return result;
     }
-    else if (this.previous)
+    else if (this._parent)
     {
-      return this.previous.get(key);
+      return this._parent.get(key);
     }
     else
     {
@@ -216,9 +216,9 @@ export class Environment
     {
       this._contents.set(key, value);
     }
-    else if (this.previous)
+    else if (this._parent)
     {
-      this.previous.set(key, value);
+      this._parent.set(key, value);
     }
     else
     {
@@ -230,7 +230,7 @@ export class Environment
   {
     if (!this._contents.has(key))
     {
-      let env = this.previous ? this.extend() : this;
+      let env = this._parent ? this.clone() : this;
       env._contents.set(key, value);
       return env;
     }
@@ -238,14 +238,22 @@ export class Environment
     throw new EnvironmentError(key);
   }
 
-  private extend() : Environment
+  extend(contents? : Iterable<[string, Value]>) : Environment
   {
-    let environment = new Environment(this.previous);
-    environment._contents = new Map<string, Value>(this._contents);
+    let environment = new Environment(contents);
+    environment._parent = this;
+    return environment;
+  }
+
+  private clone() : Environment
+  {
+    let environment = this.extend(this._contents);
+    environment._parent = this._parent;
     return environment;
   }
 
   private _contents : Map<string, Value> = new Map<string, Value>();
+  private _parent : Environment = null;
 };
 
 function isTruthy(value : Value) : boolean
@@ -321,7 +329,7 @@ export class Interpreter implements ast.ExprVisitor<LValue>, ast.StmtVisitor<Res
     {
       if (e instanceof TypeMismatchError)
       {
-        throw new InterpretError("unexpected operand of type " + Type[e.type] + " for operator " + expr.op.token.value, expr.op.token);
+        throw new InterpretError("unexpected operand of type " + e.type + " for operator " + expr.op.token.value, expr.op.token);
       }
 
       throw e;
@@ -343,7 +351,7 @@ export class Interpreter implements ast.ExprVisitor<LValue>, ast.StmtVisitor<Res
     {
       if (e instanceof TypeMismatchError)
       {
-        throw new InterpretError("attempted to call a variable of type " + Type[e.type]);
+        throw new InterpretError("attempted to call a variable of type " + e.type);
       }
 
       throw e;
@@ -362,7 +370,7 @@ export class Interpreter implements ast.ExprVisitor<LValue>, ast.StmtVisitor<Res
     {
       if (e instanceof TypeMismatchError)
       {
-        throw new InterpretError("attempted to index a variable of type " + Type[e.type]);
+        throw new InterpretError("attempted to index a variable of type " + e.type);
       }
 
       throw e;
@@ -381,7 +389,7 @@ export class Interpreter implements ast.ExprVisitor<LValue>, ast.StmtVisitor<Res
     {
       if (e instanceof TypeMismatchError)
       {
-        throw new InterpretError("attempted to index a variable of type " + Type[e.type]);
+        throw new InterpretError("attempted to index a variable of type " + e.type);
       }
 
       throw e;
@@ -449,7 +457,7 @@ export class Interpreter implements ast.ExprVisitor<LValue>, ast.StmtVisitor<Res
     {
       if (e instanceof TypeMismatchError)
       {
-        throw new InterpretError("unexpected operand of type " + Type[e.type] + " for operator " + expr.op.token.value, expr.op.token);
+        throw new InterpretError("unexpected operand of type " + e.type + " for operator " + expr.op.token.value, expr.op.token);
       }
 
       throw e;
@@ -519,7 +527,7 @@ export class Interpreter implements ast.ExprVisitor<LValue>, ast.StmtVisitor<Res
     {
       if (e instanceof TypeMismatchError)
       {
-        throw new InterpretError("unexpected operand of type " + Type[e.type] + " for operator " + stmt.op.token.value, stmt.op.token);
+        throw new InterpretError("unexpected operand of type " + e.type + " for operator " + stmt.op.token.value, stmt.op.token);
       }
       else if (e instanceof EnvironmentError)
       {
@@ -578,7 +586,7 @@ export class Interpreter implements ast.ExprVisitor<LValue>, ast.StmtVisitor<Res
 
   visitBlock(block : ast.Block) : Result
   {
-    return this.executeBlock(block, new Environment(this._environment));
+    return this.executeBlock(block, this._environment.extend());
   }
 
   visitIfStatement(stmt : ast.IfStatement) : Result
@@ -616,7 +624,7 @@ export class Interpreter implements ast.ExprVisitor<LValue>, ast.StmtVisitor<Res
   visitForStatement(stmt : ast.ForStatement) : Result
   {
     let previous = this._environment;
-    let newEnv = new Environment(this._environment);
+    let newEnv = this._environment.extend();
     try
     {
       this._environment = newEnv;
@@ -672,16 +680,6 @@ export class Interpreter implements ast.ExprVisitor<LValue>, ast.StmtVisitor<Res
       this._environment = previous;
     }
     return null;
-  }
-
-  private pushEnv() : void
-  {
-    this._environment = new Environment(this._environment);
-  }
-
-  private popEnv() : void
-  {
-    this._environment = this._environment.previous;
   }
 
   private evaluate(expr : ast.Expr) : Value

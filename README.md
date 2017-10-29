@@ -33,7 +33,7 @@ b = "foo"; // Dynamic typing, primitive types are numbers, strings and booleans
 a = nil;   // A nil type is also available
 // c = 3;     Using variables before they are introduced is not permitted
 
-var erika = {  // An object type is available and uses Javascript-like syntaxx
+var erika = {  // An object type is available and uses Javascript-like syntax
   firstName : "Erika",
   lastName : "Mustermann",
   ["age"] : 26, // Non-identifier keys are also available
@@ -52,7 +52,7 @@ var foo = function(a, b) // Functions are a first-class type
 var makeCounter = function()
 {
   var i = 0;
-  return function() // Functions form closures
+  return function() // Functions form closures, capturing primitive types by value
   {
     i += 1;
     return i;
@@ -93,21 +93,19 @@ while (b > 1e-3) b /= 2;
 Below is the most basic example of executing a `trash` program. It will accept the input as a string, parse it and run it. If an error occurs during parsing or execution, it gets thrown.
 
 ```typescript
-// Module management is sort of garbage at the moment.
-import * as trash from "trash/interpret";
-import * as p from "trash/parse";
+import * as trash from "trash";
 
 function run(program : string) : void
 {
   try
   {
-    let program = p.parseProgram(input);
+    let program = trash.parse(input);
     let interpreter = new trash.Interpreter();
     interpreter.executeBlock(program);
   }
   catch (e)
   {
-    if (e instanceof p.ParseError)
+    if (e instanceof trash.ParseError)
     {
       // program is ill-formed
     }
@@ -126,10 +124,11 @@ function run(program : string) : void
 However, it is also possible to supply a custom set of globals to the interpreter.
 
 ```typescript
-    let program = p.parseProgram(input);
+    let program = trash.parseProgram(input);
     let interpreter = new trash.Interpreter();
-    let environment = new trash.Environment();
-    environment = environment.assign("foo", "bar");
+    let environment = new trash.Environment([
+      ["foo", "bar"]
+    ]);
     interpreter.executeBlock(program, environment);
 ```
 
@@ -152,15 +151,18 @@ class NativeFunction extends trash.Callable
 
 ```typescript
     let output : string[] = [];
-    let program = p.parseProgram(input);
+    let program = trash.parse(input);
     let interpreter = new trash.Interpreter();
-    let environment = new trash.Environment();
-    let print = new NativeFunction((...args : trash.Value[]) =>
-    {
-      output.push(args.map(trash.toString).join(" "));
-      return null;
-    });
-    environment = environment.assign("print", print);
+    let environment = new trash.Environment([
+      [
+        "print",
+        new NativeFunction((...args : trash.Value[]) =>
+        {
+          output.push(args.map(trash.toString).join(" "));
+          return null;
+        }
+      ]
+    ]);
     interpreter.executeBlock(program, environment);
 ```
 
@@ -211,15 +213,18 @@ class Vec3 extends trash.Indexable
 
 ```typescript
     let output : string[] = [];
-    let program = p.parseProgram(input);
+    let program = trash.parse(input);
     let interpreter = new trash.Interpreter();
-    let environment = new trash.Environment();
-    let makeVec3 = new NativeFunction((x : trash.Value, y : trash.Value, z : trash.Value) =>
-    {
-      return trash.typeOf(x) === trash.Type.Number && trash.typeOf(y) === trash.Type.Number && trash.typeOf(z) === trash.Type.Number
-        ? new Vec3(x as number, y as number, z as number)
-        : null;
-    });
-    environment = environment.assign("Vec3", makeVec3);
+    let environment = new trash.Environment([
+      [
+        "Vec3",
+        new NativeFunction((x : trash.Value, y : trash.Value, z : trash.Value) =>
+        {
+          return trash.typeOf(x) === trash.Type.Number && trash.typeOf(y) === trash.Type.Number && trash.typeOf(z) === trash.Type.Number
+            ? new Vec3(x as number, y as number, z as number)
+            : null;
+        })
+      ]
+    ]);
     interpreter.executeBlock(program, environment);
 ```

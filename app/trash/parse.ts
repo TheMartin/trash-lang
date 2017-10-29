@@ -1,11 +1,11 @@
 import * as p from "../parser/parser";
 import * as ast from "../trash/ast";
-import * as t from "../trash/lex";
+import * as lex from "../trash/lex";
 import { Position } from "../stringView/stringView";
 
 export class ParseError
 {
-  constructor(error : p.ErrorInfo, public token? : t.Token)
+  constructor(error : p.ErrorInfo, public pos : Position)
   {
     this.message = error.message
       + (error.expectations.length > 0 ? ", expected " + error.expectations.join(" or ") : "")
@@ -17,7 +17,7 @@ export class ParseError
 
 class TokenView implements p.ParserInput
 {
-  constructor(public val : t.Token[], public start : number = 0)
+  constructor(public val : lex.Token[], public start : number = 0)
   {
     this.start = Math.min(this.val.length, this.start);
   }
@@ -29,7 +29,7 @@ class TokenView implements p.ParserInput
   {
     return new TokenViewPosition(this.start);
   }
-  peek() : t.Token
+  peek() : lex.Token
   {
     return this.empty() ? null : this.val[this.start];
   }
@@ -48,17 +48,17 @@ class TokenViewPosition implements p.Position
   }
 };
 
-function token(type : t.Type) : p.Parser<t.Token>
+function token(type : lex.Type) : p.Parser<lex.Token>
 {
-  return (input : p.ParserInput) : p.ParseResult<t.Token> =>
+  return (input : p.ParserInput) : p.ParseResult<lex.Token> =>
   {
     if (input.empty())
-      return new p.ErrorInfo(input.pos(), false, [t.Type[type]], "unexpected end of input");
+      return new p.ErrorInfo(input.pos(), false, [lex.Type[type]], "unexpected end of input");
 
     let token = (input as TokenView).peek();
     return token.type === type
       ? new p.ParseInfo(token, (input as TokenView).sub(1), true)
-      : new p.ErrorInfo(input.pos(), false, [t.Type[type]], "unexpected token " + t.Type[token.type]);
+      : new p.ErrorInfo(input.pos(), false, [lex.Type[type]], "unexpected token " + lex.Type[token.type]);
   };
 }
 
@@ -67,26 +67,26 @@ function list<V, S>(parser : p.Parser<V>, separator : p.Parser<S>) : p.Parser<V[
   return p.separatedBy(parser, separator, [], (acc, v) => acc.concat([v]));
 };
 
-let openParen = token(t.Type.LeftParen);
-let closeParen = token(t.Type.RightParen);
-let openBracket = token(t.Type.LeftBracket);
-let closeBracket = token(t.Type.RightBracket);
-let openBrace = token(t.Type.LeftBrace);
-let closeBrace = token(t.Type.RightBrace);
-let colon = token(t.Type.Colon);
-let comma = token(t.Type.Comma);
-let dot = token(t.Type.Dot);
-let semicolon = token(t.Type.Semicolon);
+let openParen = token(lex.Type.LeftParen);
+let closeParen = token(lex.Type.RightParen);
+let openBracket = token(lex.Type.LeftBracket);
+let closeBracket = token(lex.Type.RightBracket);
+let openBrace = token(lex.Type.LeftBrace);
+let closeBrace = token(lex.Type.RightBrace);
+let colon = token(lex.Type.Colon);
+let comma = token(lex.Type.Comma);
+let dot = token(lex.Type.Dot);
+let semicolon = token(lex.Type.Semicolon);
 
-let unaryOp = p.tag(p.fmap(t => new ast.Op(t), p.either(token(t.Type.Plus), token(t.Type.Minus), token(t.Type.Bang))), "unary operator");
-let multiplicationOp = p.tag(p.fmap(t => new ast.Op(t), p.either(token(t.Type.Star), token(t.Type.Slash), token(t.Type.Percent))), "multiplication/division operator");
-let additionOp = p.tag(p.fmap(t => new ast.Op(t), p.either(token(t.Type.Plus), token(t.Type.Minus))), "addition/subtraction operator");
-let relationOp = p.tag(p.fmap(t => new ast.Op(t), p.either(token(t.Type.Less), token(t.Type.LessEqual), token(t.Type.Greater), token(t.Type.GreaterEqual))), "relation operator");
-let equalityOp = p.tag(p.fmap(t => new ast.Op(t), p.either(token(t.Type.EqualEqual), token(t.Type.BangEqual))), "equality comparison operator");
-let xorOp = p.tag(p.fmap(t => new ast.Op(t), token(t.Type.Caret)), "xor operator");
-let andOp = p.tag(p.fmap(t => new ast.Op(t), token(t.Type.DoubleAmpersand)), "conjunction operator");
-let orOp = p.tag(p.fmap(t => new ast.Op(t), token(t.Type.DoublePipe)), "disjunction operator");
-let assignmentOp = p.tag(p.fmap(t => new ast.Op(t), p.either(token(t.Type.Equal), token(t.Type.PlusEqual), token(t.Type.MinusEqual), token(t.Type.StarEqual), token(t.Type.SlashEqual), token(t.Type.PercentEqual))), "assignment operator");
+let unaryOp = p.tag(p.fmap(t => new ast.Op(t), p.either(token(lex.Type.Plus), token(lex.Type.Minus), token(lex.Type.Bang))), "unary operator");
+let multiplicationOp = p.tag(p.fmap(t => new ast.Op(t), p.either(token(lex.Type.Star), token(lex.Type.Slash), token(lex.Type.Percent))), "multiplication/division operator");
+let additionOp = p.tag(p.fmap(t => new ast.Op(t), p.either(token(lex.Type.Plus), token(lex.Type.Minus))), "addition/subtraction operator");
+let relationOp = p.tag(p.fmap(t => new ast.Op(t), p.either(token(lex.Type.Less), token(lex.Type.LessEqual), token(lex.Type.Greater), token(lex.Type.GreaterEqual))), "relation operator");
+let equalityOp = p.tag(p.fmap(t => new ast.Op(t), p.either(token(lex.Type.EqualEqual), token(lex.Type.BangEqual))), "equality comparison operator");
+let xorOp = p.tag(p.fmap(t => new ast.Op(t), token(lex.Type.Caret)), "xor operator");
+let andOp = p.tag(p.fmap(t => new ast.Op(t), token(lex.Type.DoubleAmpersand)), "conjunction operator");
+let orOp = p.tag(p.fmap(t => new ast.Op(t), token(lex.Type.DoublePipe)), "disjunction operator");
+let assignmentOp = p.tag(p.fmap(t => new ast.Op(t), p.either(token(lex.Type.Equal), token(lex.Type.PlusEqual), token(lex.Type.MinusEqual), token(lex.Type.StarEqual), token(lex.Type.SlashEqual), token(lex.Type.PercentEqual))), "assignment operator");
 
 let exprImpl : { parser : p.Parser<ast.Expr> } = { parser : null };
 let expr = p.tag((input : p.ParserInput) : p.ParseResult<ast.Expr> => { return exprImpl.parser(input); }, "expression");
@@ -95,18 +95,18 @@ let statement = p.tag((input : p.ParserInput) : p.ParseResult<ast.Statement> => 
 let statements =  p.many(statement, [], (acc, r) => r instanceof ast.EmptyStatement ? acc : acc.concat([r]));
 let block = p.fmap(stmts => new ast.Block(stmts), p.enclosed(openBrace, statements, closeBrace));
 
-let nilLiteral = p.tag(p.fmap(t => new ast.Literal(t), token(t.Type.Nil)), "nil literal");
-let booleanLiteral = p.tag(p.fmap(t => new ast.Literal(t), p.either(token(t.Type.True), token(t.Type.False))), "boolean literal");
-let numberLiteral = p.tag(p.fmap(t => new ast.Literal(t), token(t.Type.Number)), "number literal");
-let stringLiteral = p.tag(p.fmap(t => new ast.Literal(t), token(t.Type.String)), "string literal");
+let nilLiteral = p.tag(p.fmap(t => new ast.Literal(t), token(lex.Type.Nil)), "nil literal");
+let booleanLiteral = p.tag(p.fmap(t => new ast.Literal(t), p.either(token(lex.Type.True), token(lex.Type.False))), "boolean literal");
+let numberLiteral = p.tag(p.fmap(t => new ast.Literal(t), token(lex.Type.Number)), "number literal");
+let stringLiteral = p.tag(p.fmap(t => new ast.Literal(t), token(lex.Type.String)), "string literal");
 
-let identifier = p.tag(p.fmap(t => new ast.Ident(t), token(t.Type.Identifier)), "identifier");
+let identifier = p.tag(p.fmap(t => new ast.Ident(t), token(lex.Type.Identifier)), "identifier");
 
 let keyValuePair = p.combine(p.either(identifier, p.enclosed(openBracket, expr, closeBracket)), p.discardLeft(colon, expr), (k, v) => { return { key : k, value : v }; });
 let objectLiteral = p.tag(p.fmap((kvs) => new ast.ObjectDef(kvs), p.enclosed(openBrace, list(keyValuePair, comma), closeBrace)), "object literal");
 
 let functionLiteral = p.tag(p.combine(
-  p.discardLeft(token(t.Type.Function), p.enclosed(openParen, list(identifier, comma), closeParen)),
+  p.discardLeft(token(lex.Type.Function), p.enclosed(openParen, list(identifier, comma), closeParen)),
   block,
   (args, body) => new ast.FunctionDef(args, body)
 ), "function literal");
@@ -156,28 +156,28 @@ let assignment = p.combine(
 );
 
 let declaration = p.combine(
-  p.discardLeft(token(t.Type.Var), identifier),
-  p.discardLeft(token(t.Type.Equal), expr),
+  p.discardLeft(token(lex.Type.Var), identifier),
+  p.discardLeft(token(lex.Type.Equal), expr),
   (name, init) => new ast.VarDeclaration(name, init)
 );
 
-let breakStmt = p.fmap(() => new ast.BreakStatement(), p.discardRight(token(t.Type.Break), semicolon));
-let continueStmt = p.fmap(() => new ast.ContinueStatement(), p.discardRight(token(t.Type.Continue), semicolon));
-let returnStmt = p.fmap((e) => new ast.ReturnStatement(e), p.discardRight(p.discardLeft(token(t.Type.Return), expr), semicolon));
+let breakStmt = p.fmap(() => new ast.BreakStatement(), p.discardRight(token(lex.Type.Break), semicolon));
+let continueStmt = p.fmap(() => new ast.ContinueStatement(), p.discardRight(token(lex.Type.Continue), semicolon));
+let returnStmt = p.fmap((e) => new ast.ReturnStatement(e), p.discardRight(p.discardLeft(token(lex.Type.Return), expr), semicolon));
 let jumpStmt = p.either(p.fmap((v) => v as ast.JumpStatement, breakStmt), p.fmap((v) => v as ast.JumpStatement, continueStmt), p.fmap((v) => v as ast.JumpStatement, returnStmt));
 let ifStatement = p.tag(p.combine(
   p.combine(
-    p.discardLeft(token(t.Type.If), p.enclosed(openParen, expr, closeParen)),
+    p.discardLeft(token(lex.Type.If), p.enclosed(openParen, expr, closeParen)),
     statement,
     (cond, stmt) =>
     {
       return { condition : cond, statement : stmt };
     }
   ),
-  p.option(null, p.discardLeft(token(t.Type.Else), statement)),
+  p.option(null, p.discardLeft(token(lex.Type.Else), statement)),
   (ifStmt, elseStmt) => new ast.IfStatement(ifStmt.condition, ifStmt.statement, elseStmt)
 ), "if statement");
-let whileStatement = p.tag(p.combine(p.discardLeft(token(t.Type.While), p.enclosed(openParen, expr, closeParen)), statement, (cond, stmt) => new ast.WhileStatement(cond, stmt)), "while statement");
+let whileStatement = p.tag(p.combine(p.discardLeft(token(lex.Type.While), p.enclosed(openParen, expr, closeParen)), statement, (cond, stmt) => new ast.WhileStatement(cond, stmt)), "while statement");
 let forSpec = p.combine(
   p.combine(
     p.discardRight(p.option(null, p.either(p.fmap((e) => e as ast.ForInit, assignment), p.fmap((e) => e as ast.ForInit, declaration))), semicolon),
@@ -193,23 +193,23 @@ let forSpec = p.combine(
     return { init : forSpec.init, cond : forSpec.cond, after : after };
   }
 );
-let forStatement = p.tag(p.combine(p.discardLeft(token(t.Type.For), p.enclosed(openParen, forSpec, closeParen)), statement, (forSpec, stmt) => new ast.ForStatement(forSpec.init, forSpec.cond, forSpec.after, stmt)), "for statement");
+let forStatement = p.tag(p.combine(p.discardLeft(token(lex.Type.For), p.enclosed(openParen, forSpec, closeParen)), statement, (forSpec, stmt) => new ast.ForStatement(forSpec.init, forSpec.cond, forSpec.after, stmt)), "for statement");
 let exprStatement = p.fmap(e => new ast.ExprStatement(e), p.discardRight(expr, semicolon));
 stmtImpl.parser = p.either(p.fmap(() => new ast.EmptyStatement(), semicolon), p.discardRight(declaration, semicolon), p.discardRight(assignment, semicolon), exprStatement, block, jumpStmt, ifStatement, whileStatement, forStatement);
 
-let program = p.fmap((stmts) => new ast.Block(stmts), p.discardRight(statements, token(t.Type.Eof)));
+let program = p.fmap((stmts) => new ast.Block(stmts), p.discardRight(statements, token(lex.Type.Eof)));
 
-export function parseProgram(input : string) : ast.Block
+export function parse(input : string) : ast.Block
 {
-  let tokens = t.tokenize(input);
-  if (!tokens)
-    return null;
+  let tokens = lex.tokenize(input);
+  if (tokens instanceof p.ErrorInfo)
+    throw new ParseError(tokens, tokens.pos as Position);
 
   let result = program(new TokenView(tokens));
   if (p.isError(result))
   {
     let i = (result.pos as TokenViewPosition).val;
-    throw new ParseError(result, tokens[i]);
+    throw new ParseError(result, i <= tokens.length ? tokens[i].pos : undefined);
   }
 
   return result.output;
