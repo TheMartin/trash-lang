@@ -3,13 +3,40 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      #input
+      {
+        display: block;
+      }
+      #run
+      {
+        width: 100px;
+      }
+      #result-container
+      {
+        height: 250px;
+        overflow-y: auto;
+      }
+      #input-container, #result-container
+      {
+        margin: 5px;
+        padding: 5px;
+        border: 1px solid gray;
+      }
+    </style>
   </head>
 
   <body>
     <div id="content">
-      <textarea id="input" rows="50" cols="80"></textarea>
-      <button id="run">Run</button>
-      <pre id="result"></pre>
+      <div id="input-container">
+        <div>Input:</div>
+        <textarea id="input" rows="30" cols="80"></textarea>
+        <button id="run">Run</button>
+      </div>
+      <div id="result-container">
+        <div>Output:</div>
+        <pre id="result"></pre>
+      </div>
     </div>
   </body>
 </html>

@@ -3,6 +3,18 @@ import * as ast from "../trash/ast";
 import * as t from "../trash/lex";
 import { Position } from "../stringView/stringView";
 
+export class ParseError
+{
+  constructor(error : p.ErrorInfo, public token? : t.Token)
+  {
+    this.message = error.message
+      + (error.expectations.length > 0 ? ", expected " + error.expectations.join(" or ") : "")
+      + (error.context ? " while parsing " + error.context : "");
+  }
+
+  message : string = "";
+};
+
 class TokenView implements p.ParserInput
 {
   constructor(public val : t.Token[], public start : number = 0)
@@ -187,7 +199,7 @@ stmtImpl.parser = p.either(p.fmap(() => new ast.EmptyStatement(), semicolon), p.
 
 let program = p.fmap((stmts) => new ast.Block(stmts), p.discardRight(statements, token(t.Type.Eof)));
 
-export function parseProgram(input : string) : ast.Block | p.ErrorInfo
+export function parseProgram(input : string) : ast.Block
 {
   let tokens = t.tokenize(input);
   if (!tokens)
@@ -197,8 +209,7 @@ export function parseProgram(input : string) : ast.Block | p.ErrorInfo
   if (p.isError(result))
   {
     let i = (result.pos as TokenViewPosition).val;
-    result.pos = i < tokens.length ? tokens[i].pos : new Position(0, 0);
-    return result;
+    throw new ParseError(result, tokens[i]);
   }
 
   return result.output;

@@ -87,3 +87,139 @@ for (var i = 0; i < 5; i += 1)
 
 while (b > 1e-3) b /= 2;
 ```
+
+## `trash` integration
+
+Below is the most basic example of executing a `trash` program. It will accept the input as a string, parse it and run it. If an error occurs during parsing or execution, it gets thrown.
+
+```typescript
+// Module management is sort of garbage at the moment.
+import * as trash from "trash/interpret";
+import * as p from "trash/parse";
+
+function run(program : string) : void
+{
+  try
+  {
+    let program = p.parseProgram(input);
+    let interpreter = new trash.Interpreter();
+    interpreter.executeBlock(program);
+  }
+  catch (e)
+  {
+    if (e instanceof p.ParseError)
+    {
+      // program is ill-formed
+    }
+    else if (e instanceof trash.InterpretError)
+    {
+      // runtime error occured
+    }
+    else if (e instanceof trash.InternalError)
+    {
+      // trash-lang has a bug
+    }
+  }
+};
+```
+
+However, it is also possible to supply a custom set of globals to the interpreter.
+
+```typescript
+    let program = p.parseProgram(input);
+    let interpreter = new trash.Interpreter();
+    let environment = new trash.Environment();
+    environment = environment.assign("foo", "bar");
+    interpreter.executeBlock(program, environment);
+```
+
+Furthermore, using these globals, it is possible to add native functions to the `trash` runtime environment.
+
+```typescript
+class NativeFunction extends trash.Callable
+{
+  constructor(private _fn : (...args : trash.Value[]) => trash.Value)
+  {
+    super();
+  }
+
+  call(interpreter : trash.Interpreter, args : trash.Value[]) : trash.Value
+  {
+    return this._fn(...args);
+  }
+};
+```
+
+```typescript
+    let output : string[] = [];
+    let program = p.parseProgram(input);
+    let interpreter = new trash.Interpreter();
+    let environment = new trash.Environment();
+    let print = new NativeFunction((...args : trash.Value[]) =>
+    {
+      output.push(args.map(trash.toString).join(" "));
+      return null;
+    });
+    environment = environment.assign("print", print);
+    interpreter.executeBlock(program, environment);
+```
+
+Similarly, custom data types can also be implemented.
+
+```typescript
+class Vec3 extends trash.Indexable
+{
+  constructor(x : number, y : number, z : number)
+  {
+    super();
+    this._vec = { x, y, z };
+  }
+
+  get(key : trash.Value) : trash.Value
+  {
+    if (this.isValidKey(key))
+    {
+      return this._vec[key];
+    }
+    else
+    {
+      return null;
+    }
+  }
+
+  set(key : trash.Value, value : trash.Value) : void
+  {
+    if (this.isValidKey(key) && this.isValidValue(value))
+    {
+      this._vec[key] = value;
+    }
+  }
+
+  private isValidKey(key : trash.Value) : key is string
+  {
+    return trash.typeOf(key) === trash.Type.String && key in this._vec;
+  }
+
+  private isValidValue(value : trash.Value) : value is number
+  {
+    return trash.typeOf(value) === trash.Type.Number;
+  }
+
+  private _vec = { x : 0, y : 0, z : 0 };
+};
+```
+
+```typescript
+    let output : string[] = [];
+    let program = p.parseProgram(input);
+    let interpreter = new trash.Interpreter();
+    let environment = new trash.Environment();
+    let makeVec3 = new NativeFunction((x : trash.Value, y : trash.Value, z : trash.Value) =>
+    {
+      return trash.typeOf(x) === trash.Type.Number && trash.typeOf(y) === trash.Type.Number && trash.typeOf(z) === trash.Type.Number
+        ? new Vec3(x as number, y as number, z as number)
+        : null;
+    });
+    environment = environment.assign("Vec3", makeVec3);
+    interpreter.executeBlock(program, environment);
+```

@@ -11,6 +11,11 @@ class TypeMismatchError
   constructor(public type : Type, public types : Type[]) {}
 };
 
+class EnvironmentError
+{
+  constructor(public identifier : string) {}
+};
+
 export class InterpretError
 {
   constructor(public message : string, public token? : t.Token) {}
@@ -110,7 +115,7 @@ class Accessor
   }
 };
 
-enum Type
+export enum Type
 {
   Nil,
   Boolean,
@@ -120,7 +125,27 @@ enum Type
   Object
 };
 
-function typeOf(value : Value) : Type
+export function toString(value : Value) : string
+{
+  if (value instanceof Callable)
+  {
+    return "[function]";
+  }
+  else if (value instanceof Indexable)
+  {
+    return "[object]";
+  }
+  else if (value === null)
+  {
+    return "nil";
+  }
+  else
+  {
+    return value as string;
+  }
+}
+
+export function typeOf(value : Value) : Type
 {
   if (value instanceof Indexable)
   {
@@ -181,7 +206,7 @@ export class Environment
     }
     else
     {
-      throw new InterpretError("reading from an undeclared variable '" + key + "'");
+      throw new EnvironmentError(key);
     }
   }
 
@@ -197,7 +222,7 @@ export class Environment
     }
     else
     {
-      throw new InterpretError("assigning into an undeclared variable '" + key + "'");
+      throw new EnvironmentError(key);
     }
   }
 
@@ -210,7 +235,7 @@ export class Environment
       return env;
     }
 
-    throw new InterpretError("double declaration of variable '" + key + "'");
+    throw new EnvironmentError(key);
   }
 
   private extend() : Environment
@@ -308,31 +333,59 @@ export class Interpreter implements ast.ExprVisitor<LValue>, ast.StmtVisitor<Res
   visitFunctionCall(expr : ast.FunctionCall) : LValue
   {
     let operand = this.evaluate(expr.callee);
-    if (operand instanceof Callable)
+    try
     {
+      checkType(operand, [Type.Function]);
       let params = expr.args.map(arg => this.evaluate(arg));
-      return operand.call(this, params);
+      return (operand as Callable).call(this, params);      
     }
+    catch (e)
+    {
+      if (e instanceof TypeMismatchError)
+      {
+        throw new InterpretError("attempted to call a variable of type " + Type[e.type]);
+      }
 
-    throw new InterpretError("attempted to call a non-callable");
+      throw e;
+    }
   }
   
   visitBracketAccess(expr : ast.BracketAccess) : LValue
   {
     let operand = this.evaluate(expr.lhs);
-    if (operand instanceof Indexable)
-      return new Accessor(operand, this.evaluate(expr.index));
+    try
+    {
+      checkType(operand, [Type.Object]);
+      return new Accessor(operand as Indexable, this.evaluate(expr.index));      
+    }
+    catch (e)
+    {
+      if (e instanceof TypeMismatchError)
+      {
+        throw new InterpretError("attempted to index a variable of type " + Type[e.type]);
+      }
 
-    throw new InterpretError("attempted to index a non-indexable");
+      throw e;
+    }
   }
   
   visitDotAccess(expr : ast.DotAccess) : LValue
   {
     let operand = this.evaluate(expr.lhs);
-    if (operand instanceof Indexable)
-      return new Accessor(operand, expr.index.token.value as string);
+    try
+    {
+      checkType(operand, [Type.Object]);
+      return new Accessor(operand as Indexable, expr.index.token.value as string);      
+    }
+    catch (e)
+    {
+      if (e instanceof TypeMismatchError)
+      {
+        throw new InterpretError("attempted to index a variable of type " + Type[e.type]);
+      }
 
-    throw new InterpretError("attempted to index a non-indexable");
+      throw e;
+    }
   }
 
   visitBinaryExpression(expr : ast.BinaryExpr) : LValue
@@ -402,7 +455,7 @@ export class Interpreter implements ast.ExprVisitor<LValue>, ast.StmtVisitor<Res
       throw e;
     }
 
-    throw new InternalError("unexpected unary operator " + expr.op.token.value);
+    throw new InternalError("unexpected binary operator " + expr.op.token.value);
   }
 
   visitAssignment(stmt : ast.Assignment) : Result
@@ -468,6 +521,10 @@ export class Interpreter implements ast.ExprVisitor<LValue>, ast.StmtVisitor<Res
       {
         throw new InterpretError("unexpected operand of type " + Type[e.type] + " for operator " + stmt.op.token.value, stmt.op.token);
       }
+      else if (e instanceof EnvironmentError)
+      {
+        throw new InterpretError("assigning into undeclared variable '" + e.identifier + "'", stmt.op.token);
+      }
 
       throw e;
     }
@@ -477,13 +534,25 @@ export class Interpreter implements ast.ExprVisitor<LValue>, ast.StmtVisitor<Res
 
   visitVarDeclaration(decl : ast.VarDeclaration) : Result
   {
-    this._environment = this._environment.assign(decl.name.token.value as string, this.evaluate(decl.initializer));
-    return null;
+    try
+    {
+      this._environment = this._environment.assign(decl.name.token.value as string, this.evaluate(decl.initializer));
+      return null;      
+    }
+    catch (e)
+    {
+      if (e instanceof EnvironmentError)
+      {
+        throw new InterpretError("redeclaring a previously declared variable '" + e.identifier + "'", decl.name.token);
+      }
+
+      throw e;
+    }
   }
 
   visitExpressionStatement(stmt : ast.ExprStatement) : Result
   {
-    stmt.expr.accept(this);
+    this.evaluate(stmt.expr);
     return null;
   }
 
@@ -583,7 +652,7 @@ export class Interpreter implements ast.ExprVisitor<LValue>, ast.StmtVisitor<Res
     return null;
   }
 
-  executeBlock(block : ast.Block, env : Environment) : Result
+  executeBlock(block : ast.Block, env : Environment = new Environment()) : Result
   {
     let previous = this._environment;
     try
@@ -620,7 +689,17 @@ export class Interpreter implements ast.ExprVisitor<LValue>, ast.StmtVisitor<Res
     let result = expr.accept(this);
     if (result instanceof Variable)
     {
-      return result.eval();
+      try
+      {
+        return result.eval();
+      }
+      catch (e)
+      {
+        if (e instanceof EnvironmentError)
+        {
+          throw new InterpretError("accessing undeclared variable '" + e.identifier + "'");
+        }
+      }
     }
     else if (result instanceof Accessor)
     {
